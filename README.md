@@ -1,17 +1,19 @@
 # Farmacia NoSQL - MongoDB
 
-Trabajo Practico Integrador Nro. 2 - Base de Datos 2  
+Trabajo Practico Integrador Nro. 3 - Base de Datos 2  
 Universidad Nacional de Lanus (UNLa)
 
 ## Descripcion
 
-Este proyecto es una herramienta de generacion de datos para una cadena de farmacias, desarrollada en Java con Spring Boot. Simula la operatoria de ventas de multiples sucursales y exporta los resultados a un archivo JSON (`ventas_entregable.json`) utilizando un modelo de datos completamente embebido (denormalizado), disenado para ser persistido en MongoDB.
+Este proyecto es una herramienta de generacion de datos y consultas para una cadena de farmacias, desarrollada en Java con Spring Boot y MongoDB. Simula la operatoria de ventas de multiples sucursales, persiste los datos en MongoDB (driver nativo) y ejecuta 8 consultas de agregacion, mostrando los resultados en consola.
 
 ## Tecnologias
 
 - **Java 21** - Lenguaje de programacion
 - **Spring Boot 4.0.6** - Framework de aplicacion
-- **MongoDB** - Base de datos NoSQL documental (dependencia incluida para futura integracion)
+- **MongoDB 7.0** - Base de datos NoSQL documental
+- **MongoDB Java Driver 5.6.5** - Driver nativo de MongoDB
+- **Docker** - Contenedor para MongoDB (docker-compose)
 - **Jackson** - Serializacion/deserializacion JSON
 - **Maven 3.9.16** - Herramienta de build (con Maven Wrapper incluido)
 - **JUnit 5 / Spring Boot Test** - Testing
@@ -21,14 +23,15 @@ Este proyecto es una herramienta de generacion de datos para una cadena de farma
 ```
 farmacia-mongodb/
 ├── pom.xml
+├── docker-compose.yml
 ├── mvnw / mvnw.cmd
 ├── ventas_entregable.json       (archivo generado al ejecutar)
+├── consultas.js                 (consultas nativas MongoDB)
 │
 └── src/
     ├── main/
     │   ├── java/.../farmaciamongodb/
     │   │   ├── FarmaciaMongodbApplication.java
-    │   │   ├── controller/           (vacio - planificado)
     │   │   ├── model/
     │   │   │   ├── Venta.java
     │   │   │   ├── Cliente.java
@@ -39,9 +42,9 @@ farmacia-mongodb/
     │   │   │   ├── Producto.java
     │   │   │   ├── Sucursal.java
     │   │   │   └── TipoProducto.java (enum)
-    │   │   ├── repository/           (vacio - planificado)
     │   │   └── service/
-    │   │       └── JsonExportService.java
+    │   │       ├── JsonExportService.java
+    │   │       └── MongoPersistenceService.java
     │   └── resources/
     │       └── application.yaml
     └── test/
@@ -50,7 +53,7 @@ farmacia-mongodb/
 
 ## Modelo de datos
 
-El diseno sigue un esquema **denormalizado con documentos embebidos**, pensado para MongoDB. Cada `Venta` contiene toda la informacion relacionada dentro de un unico documento:
+El diseno sigue un esquema **denormalizado con documentos embebidos**, propio de MongoDB. Cada `Venta` es un documento que contiene toda la informacion relacionada:
 
 ```
 Venta
@@ -73,75 +76,76 @@ Venta
     └── producto: Producto (embebido)
 ```
 
-### Clases del modelo
-
-| Clase | Descripcion |
-|-------|-------------|
-| `Venta` | Documento raiz. Representa una venta con ticket, fecha, total, forma de pago, sucursal, cliente, empleados y detalle. |
-| `Cliente` | Cliente de la farmacia. Incluye DNI, nombre, direccion y obra social (opcional). |
-| `DetalleVenta` | Linea de detalle de una venta. Almacena cantidad, precio historico (al momento de la venta) y subtotal. |
-| `Direccion` | Direccion con calle, numero, localidad y provincia. |
-| `Empleado` | Empleado de la farmacia. Incluye CUIL, DNI, nombre, direccion y obra social. |
-| `ObraSocial` | Obra social con nombre y numero de afiliado (nullable). |
-| `Producto` | Producto con codigo numerico, tipo (MEDICAMENTO / PERFUMERIA), descripcion, laboratorio y precio. |
-| `Sucursal` | Sucursal con punto de venta, direccion, encargado y lista de empleados. |
-| `TipoProducto` | Enumeracion con dos valores: `MEDICAMENTO` y `PERFUMERIA`. |
-
 ## Funcionamiento
 
-La aplicacion se ejecuta como una herramienta de linea de comandos (CommandLineRunner) y realiza los siguientes pasos:
+Al ejecutar la aplicacion (CommandLineRunner), se realizan los siguientes pasos automaticamente:
 
 1. **Inicializar catalogos**: Crea 10 productos (7 medicamentos, 3 perfumeria), 10 clientes y 3 sucursales (Lanus, Avellaneda, Banfield) con 3 empleados cada una.
-2. **Simular ventas**: Genera entre 24 y 36 ventas aleatorias por sucursal, con metodo de pago, cliente, empleados y productos aleatorios. Los totales y subtotales se calculan automaticamente.
-3. **Exportar a JSON**: Escribe todas las ventas generadas en `ventas_entregable.json` con formato pretty-print.
+2. **Simular ventas**: Genera entre 24 y 36 ventas aleatorias por sucursal (90 a 108 ventas totales), con metodo de pago, cliente, empleados y productos aleatorios. Las fechas se distribuyen entre enero y junio de 2026. Los totales y subtotales se calculan automaticamente.
+3. **Exportar a JSON**: Escribe todas las ventas generadas en `ventas_entregable.json`.
+4. **Persistir en MongoDB**: Limpia la coleccion `ventas` existente e inserta cada venta como un documento individual en la base de datos `farmacia_db`.
+5. **Ejecutar 8 consultas de agregacion**: Corre consultas sobre MongoDB usando el framework de agregacion y muestra los resultados formateados en consola.
 
-### Datos de prueba
+## Consultas implementadas
 
-- Marcas realistas del mercado argentino: Bayer, Pfizer, Roemmers, Bago, Elea, Casasco, Dove, Natura, Carolina Herrera.
-- Obras sociales: OSDE, Swiss Medical.
-- Localidades del conurbano bonaerense: Lanus, Avellaneda, Banfield.
-- Precios en pesos argentinos (ARS).
+Cada consulta tiene dos variantes: **cadena completa** y **por sucursal**.
+
+| # | Consulta | Variantes |
+|---|----------|-----------|
+| 1 | Total de ventas entre fechas | Cadena y sucursal |
+| 2 | Ventas por obra social (o privado) | Cadena y sucursal |
+| 3 | Ventas por medio de pago | Cadena y sucursal |
+| 4 | Ventas por tipo de producto (MEDICAMENTO / PERFUMERIA) | Cadena y sucursal |
+| 5 | Ranking de productos por monto | Cadena y sucursal |
+| 6 | Ranking de productos por cantidad vendida | Cadena y sucursal |
+| 7 | Ranking de clientes por monto de compras | Cadena y sucursal |
+| 8 | Ranking de clientes por cantidad de compras | Cadena y sucursal |
+
+Las consultas tambien estan disponibles en `consultas.js` como pipelines nativas de MongoDB, listas para ejecutar en MongoDB Shell o Compass.
 
 ## Como ejecutar
 
 ### Requisitos
 
 - Java 21 JDK
+- Docker (para el contenedor de MongoDB)
 - Git (opcional, para clonar)
 
 ### Pasos
 
 ```bash
-# Clonar el repositorio
+# 1. Clonar el repositorio
 git clone https://github.com/LucaLzt/TP-Base_De_Datos_2.git
 cd farmacia-mongodb
 
-# Ejecutar con Maven Wrapper
-./mvnw spring-boot:run
+# 2. Iniciar MongoDB con Docker
+docker-compose up -d
 
-# O bien compilar y ejecutar el JAR
-./mvnw clean package
-java -jar target/farmacia-mongodb-0.0.1-SNAPSHOT.jar
+# 3. Ejecutar la aplicacion con Maven Wrapper
+./mvnw spring-boot:run
 ```
 
-Al ejecutarse, la aplicacion genera el archivo `ventas_entregable.json` en la raiz del proyecto y finaliza.
-
-**Nota**: Actualmente la aplicacion no requiere una instancia de MongoDB en ejecucion, ya que solo genera un archivo JSON. La dependencia de MongoDB esta incluida para futuras etapas del proyecto.
-
-## Estado del proyecto
-
-Este proyecto corresponde a la **Entrega Nro. 2** de 3. El estado actual es:
-
-- [x] Modelo de clases (POJOs) con estructura embebida para MongoDB
-- [x] Generador de datos de prueba y exportacion a JSON
-- [ ] Repositorios MongoDB (planificado para entrega futura)
-- [ ] Controladores REST (planificado para entrega futura)
-- [ ] Interfaz web / templates (planificado para entrega futura)
+Al ejecutarse, la aplicacion:
+- Genera el archivo `ventas_entregable.json`
+- Inserta los datos en MongoDB (coleccion `ventas`, base `farmacia_db`)
+- Imprime en consola los reportes de las 8 consultas
 
 ## Decisiones de diseno
 
-- **Modelo embebido (denormalizado)**: Se opto por un diseno documental donde cada venta contiene todos sus datos relacionados dentro de un unico documento, evitando referencias y joins. Esto es apropiado para MongoDB y para el patron de acceso tipico de consulta de ventas.
-- **Precio historico por linea**: Cada `DetalleVenta` almacena `precioUnitarioHistorico` para conservar el precio del producto al momento de la venta, independientemente de cambios futuros en el catalogo.
-- **Totales auto-calculados**: Los subtotales y el total de la venta se calculan en memoria a traves de metodos de dominio (`calcularSubtotal()`, `recalcularTotal()`), no en la base de datos.
+- **Modelo embebido (denormalizado)**: Cada venta contiene todos sus datos relacionados dentro de un unico documento, optimo para MongoDB.
+- **Precio historico por linea**: Cada `DetalleVenta` almacena `precioUnitarioHistorico` para conservar el precio del producto al momento de la venta.
+- **Totales auto-calculados**: Los subtotales y el total se calculan en memoria mediante metodos de dominio.
+- **Driver nativo MongoDB**: Se utiliza el driver sincronico de MongoDB (`mongodb-driver-sync`) en lugar de Spring Data, alineado con la arquitectura de Spring Boot 4.
 - **Sin Lombok**: Todos los getters, setters y constructores estan escritos manualmente.
-- **Maven Wrapper**: Se incluye `mvnw` para poder compilar el proyecto sin necesidad de tener Maven instalado previamente.
+- **Maven Wrapper**: Permite compilar el proyecto sin tener Maven instalado.
+- **Docker Compose**: Incluye `docker-compose.yml` para levantar MongoDB sin instalacion manual.
+
+## Estado del proyecto
+
+Este proyecto corresponde a la **Entrega Nro. 3** de 3. Estado actual:
+
+- [x] Modelo de clases (POJOs) con estructura embebida para MongoDB
+- [x] Generador de datos de prueba y exportacion a JSON
+- [x] Persistencia en MongoDB mediante driver nativo
+- [x] Consultas 1 a 8 con framework de agregacion (cadena + sucursal)
+- [x] Documentacion de consultas nativas en `consultas.js`
