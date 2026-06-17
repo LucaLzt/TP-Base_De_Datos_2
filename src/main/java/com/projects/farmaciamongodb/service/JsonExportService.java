@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -26,7 +27,7 @@ public class JsonExportService {
     private List<Cliente> catalogoClientes = new ArrayList<>();
     private List<Sucursal> catalogoSucursales = new ArrayList<>();
 
-    public void generarYExportarDatos() {
+    public List<Venta> generarYExportarDatos() {
         System.out.println("Generando catálogos de datos...");
         inicializarCatalogos();
 
@@ -35,6 +36,7 @@ public class JsonExportService {
 
         System.out.println("Generadas " + todasLasVentas.size() + " ventas en total.");
         exportarAArchivoJson(todasLasVentas, "ventas_entregable.json");
+        return todasLasVentas;
     }
 
     private void inicializarCatalogos() {
@@ -63,7 +65,7 @@ public class JsonExportService {
         // 3. Creo 3 Sucursales con 3 Empleados cada una
         String[] localidades = {"Lanús", "Avellaneda", "Banfield"};
         for (int i = 1; i <= 3; i++) {
-            Sucursal sucursal = new Sucursal("000" + i, new Direccion("Calle Principal", i * 100, "BA", localidades[i-1]), null, null);
+            Sucursal sucursal = new Sucursal("000" + i, new Direccion("Calle Principal", i * 100, "BA", localidades[i - 1]), null, null);
 
             // Creo 3 Empleados para esta Sucursal
             Empleado encargado = new Empleado("20-11111111-" + i, 11111111L, "Encargado" + i, "Jefe", dirGen, osde);
@@ -83,6 +85,15 @@ public class JsonExportService {
         List<Venta> ventasGeneradas = new ArrayList<>();
         String[] formasPago = {"Efectivo", "Tarjeta", "Débito"};
 
+        // Rango de fechas entre 01/01/2026 y 17/06/2026
+        Calendar cal = Calendar.getInstance();
+        cal.set(2026, Calendar.JANUARY, 1, 0, 0, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        long inicio2026 = cal.getTimeInMillis();
+        cal.set(2026, Calendar.JUNE, 17, 23, 59, 59);
+        long finJunio = cal.getTimeInMillis();
+        long rangoFechas = finJunio - inicio2026;
+
         for (Sucursal sucursal : catalogoSucursales) {
             // Calculo cant de ventas para la sucursal (30 +/- 20% = entre 24 y 36 ventas)
             int cantidadVentas = 24 + random.nextInt(13); // random de 0 a 12 + 24
@@ -91,7 +102,8 @@ public class JsonExportService {
                 // Instancio la venta
                 String ticketSecuencial = String.format("%08d", i);
                 String nroTicketCompleto = sucursal.getPuntoVenta() + "-" + ticketSecuencial;
-                Venta venta = new Venta(nroTicketCompleto, new Date(), formasPago[random.nextInt(formasPago.length)]);
+                Date fechaAleatoria = new Date(inicio2026 + (long)(random.nextDouble() * rangoFechas));
+            Venta venta = new Venta(nroTicketCompleto, fechaAleatoria, formasPago[random.nextInt(formasPago.length)]);
 
                 // Asigno las relaciones
                 venta.setSucursal(sucursal);

@@ -1,3 +1,5 @@
 spring:
   application:
     name: farmacia-mongodb
+  mongodb:
+    uri: mongodb://localhost:27017/farmacia_db
