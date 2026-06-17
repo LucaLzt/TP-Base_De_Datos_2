@@ -6,6 +6,7 @@ import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Accumulators;
 import com.mongodb.client.model.Aggregates;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.Sorts;
 import com.projects.farmaciamongodb.model.Venta;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -60,8 +61,20 @@ public class MongoPersistenceService {
 
         consulta1Cadena(fechaInicio, fechaFin);
         consulta1PorSucursal(fechaInicio, fechaFin);
+        consulta2Cadena(fechaInicio, fechaFin);
+        consulta2PorSucursal(fechaInicio, fechaFin);
+        consulta3Cadena(fechaInicio, fechaFin);
+        consulta3PorSucursal(fechaInicio, fechaFin);
         consulta4Cadena(fechaInicio, fechaFin);
         consulta4PorSucursal(fechaInicio, fechaFin);
+        consulta5Cadena(fechaInicio, fechaFin);
+        consulta5PorSucursal(fechaInicio, fechaFin);
+        consulta6Cadena(fechaInicio, fechaFin);
+        consulta6PorSucursal(fechaInicio, fechaFin);
+        consulta7Cadena(fechaInicio, fechaFin);
+        consulta7PorSucursal(fechaInicio, fechaFin);
+        consulta8Cadena(fechaInicio, fechaFin);
+        consulta8PorSucursal(fechaInicio, fechaFin);
     }
 
     private void consulta1Cadena(Date fechaInicio, Date fechaFin) {
@@ -157,6 +170,340 @@ public class MongoPersistenceService {
             double monto = doc.getDouble("totalMonto");
             int unidades = doc.getInteger("cantidadUnidades");
             System.out.printf("%-15s %-15s %-20s $ %12.2f %20d%n", pv, loc, tipo, monto, unidades);
+        }
+        System.out.println();
+    }
+
+    private void consulta2Cadena(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 2: Ventas por Obra Social (Cadena Completa) ---");
+        System.out.printf("%-20s %15s %15s%n", "Obra Social", "Total Vendido", "Cant. Ventas");
+        System.out.println("----------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.group(
+                        new Document("$ifNull", Arrays.asList("$cliente.obraSocial.nombre", "Privado")),
+                        Accumulators.sum("totalVendido", "$totalVenta"),
+                        Accumulators.sum("cantidadVentas", 1)
+                )
+        );
+
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            String os = doc.getString("_id");
+            double total = doc.getDouble("totalVendido");
+            int cantidad = doc.getInteger("cantidadVentas");
+            System.out.printf("%-20s $ %12.2f %15d%n", os, total, cantidad);
+        }
+        System.out.println();
+    }
+
+    private void consulta2PorSucursal(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 2: Ventas por Obra Social y Sucursal ---");
+        System.out.printf("%-15s %-15s %-20s %15s %15s%n", "Punto Venta", "Localidad", "Obra Social", "Total Vendido", "Cant. Ventas");
+        System.out.println("--------------------------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.group(
+                        new Document("puntoVenta", "$sucursal.puntoVenta")
+                                .append("localidad", "$sucursal.direccion.localidad")
+                                .append("obraSocial", new Document("$ifNull", Arrays.asList("$cliente.obraSocial.nombre", "Privado"))),
+                        Accumulators.sum("totalVendido", "$totalVenta"),
+                        Accumulators.sum("cantidadVentas", 1)
+                )
+        );
+
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String pv = idDoc != null ? idDoc.getString("puntoVenta") : "";
+            String loc = idDoc != null ? idDoc.getString("localidad") : "";
+            String os = idDoc != null ? idDoc.getString("obraSocial") : "";
+            double total = doc.getDouble("totalVendido");
+            int cantidad = doc.getInteger("cantidadVentas");
+            System.out.printf("%-15s %-15s %-20s $ %12.2f %15d%n", pv, loc, os, total, cantidad);
+        }
+        System.out.println();
+    }
+
+    private void consulta3Cadena(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 3: Ventas por Medio de Pago (Cadena Completa) ---");
+        System.out.printf("%-15s %15s %15s%n", "Forma de Pago", "Total Vendido", "Cant. Ventas");
+        System.out.println("----------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.group("$formaPago",
+                        Accumulators.sum("totalVendido", "$totalVenta"),
+                        Accumulators.sum("cantidadVentas", 1))
+        );
+
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            String fp = doc.getString("_id");
+            double total = doc.getDouble("totalVendido");
+            int cantidad = doc.getInteger("cantidadVentas");
+            System.out.printf("%-15s $ %12.2f %15d%n", fp, total, cantidad);
+        }
+        System.out.println();
+    }
+
+    private void consulta3PorSucursal(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 3: Ventas por Medio de Pago y Sucursal ---");
+        System.out.printf("%-15s %-15s %-15s %15s %15s%n", "Punto Venta", "Localidad", "Forma de Pago", "Total Vendido", "Cant. Ventas");
+        System.out.println("--------------------------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.group(
+                        new Document("puntoVenta", "$sucursal.puntoVenta")
+                                .append("localidad", "$sucursal.direccion.localidad")
+                                .append("formaPago", "$formaPago"),
+                        Accumulators.sum("totalVendido", "$totalVenta"),
+                        Accumulators.sum("cantidadVentas", 1)
+                )
+        );
+
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String pv = idDoc != null ? idDoc.getString("puntoVenta") : "";
+            String loc = idDoc != null ? idDoc.getString("localidad") : "";
+            String fp = idDoc != null ? idDoc.getString("formaPago") : "";
+            double total = doc.getDouble("totalVendido");
+            int cantidad = doc.getInteger("cantidadVentas");
+            System.out.printf("%-15s %-15s %-15s $ %12.2f %15d%n", pv, loc, fp, total, cantidad);
+        }
+        System.out.println();
+    }
+
+    private void consulta5Cadena(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 5: Ranking de Productos por Monto (Cadena Completa) ---");
+        System.out.printf("%-30s %20s %15s%n", "Producto", "Total Monto", "Cant. Unidades");
+        System.out.println("------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.unwind("$detalles"),
+                Aggregates.group(
+                        new Document("codigo", "$detalles.producto.codigoNumerico")
+                                .append("descripcion", "$detalles.producto.descripcion"),
+                        Accumulators.sum("totalMonto", "$detalles.subtotal"),
+                        Accumulators.sum("cantidadUnidades", "$detalles.cantidad")),
+                Aggregates.sort(Sorts.descending("totalMonto"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String desc = idDoc != null ? idDoc.getString("descripcion") : "";
+            double monto = doc.getDouble("totalMonto");
+            int unidades = doc.getInteger("cantidadUnidades");
+            System.out.printf("%-3d %-26s $ %14.2f %15d%n", rank++, desc, monto, unidades);
+        }
+        System.out.println();
+    }
+
+    private void consulta5PorSucursal(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 5: Ranking de Productos por Monto por Sucursal ---");
+        System.out.printf("%-15s %-15s %-25s %15s %15s%n", "Punto Venta", "Localidad", "Producto", "Total Monto", "Cant. Unidades");
+        System.out.println("------------------------------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.unwind("$detalles"),
+                Aggregates.group(
+                        new Document("puntoVenta", "$sucursal.puntoVenta")
+                                .append("localidad", "$sucursal.direccion.localidad")
+                                .append("codigo", "$detalles.producto.codigoNumerico")
+                                .append("descripcion", "$detalles.producto.descripcion"),
+                        Accumulators.sum("totalMonto", "$detalles.subtotal"),
+                        Accumulators.sum("cantidadUnidades", "$detalles.cantidad")),
+                Aggregates.sort(Sorts.descending("totalMonto"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String pv = idDoc != null ? idDoc.getString("puntoVenta") : "";
+            String loc = idDoc != null ? idDoc.getString("localidad") : "";
+            String desc = idDoc != null ? idDoc.getString("descripcion") : "";
+            double monto = doc.getDouble("totalMonto");
+            int unidades = doc.getInteger("cantidadUnidades");
+            System.out.printf("%-3d %-12s %-12s %-25s $ %9.2f %15d%n", rank++, pv, loc, desc, monto, unidades);
+        }
+        System.out.println();
+    }
+
+    private void consulta6Cadena(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 6: Ranking de Productos por Cantidad (Cadena Completa) ---");
+        System.out.printf("%-30s %15s %20s%n", "Producto", "Cant. Unidades", "Total Monto");
+        System.out.println("------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.unwind("$detalles"),
+                Aggregates.group(
+                        new Document("codigo", "$detalles.producto.codigoNumerico")
+                                .append("descripcion", "$detalles.producto.descripcion"),
+                        Accumulators.sum("cantidadUnidades", "$detalles.cantidad"),
+                        Accumulators.sum("totalMonto", "$detalles.subtotal")),
+                Aggregates.sort(Sorts.descending("cantidadUnidades"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String desc = idDoc != null ? idDoc.getString("descripcion") : "";
+            int unidades = doc.getInteger("cantidadUnidades");
+            double monto = doc.getDouble("totalMonto");
+            System.out.printf("%-3d %-26s %15d $ %14.2f%n", rank++, desc, unidades, monto);
+        }
+        System.out.println();
+    }
+
+    private void consulta6PorSucursal(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 6: Ranking de Productos por Cantidad por Sucursal ---");
+        System.out.printf("%-15s %-15s %-25s %15s %15s%n", "Punto Venta", "Localidad", "Producto", "Cant. Unidades", "Total Monto");
+        System.out.println("------------------------------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.unwind("$detalles"),
+                Aggregates.group(
+                        new Document("puntoVenta", "$sucursal.puntoVenta")
+                                .append("localidad", "$sucursal.direccion.localidad")
+                                .append("codigo", "$detalles.producto.codigoNumerico")
+                                .append("descripcion", "$detalles.producto.descripcion"),
+                        Accumulators.sum("cantidadUnidades", "$detalles.cantidad"),
+                        Accumulators.sum("totalMonto", "$detalles.subtotal")),
+                Aggregates.sort(Sorts.descending("cantidadUnidades"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String pv = idDoc != null ? idDoc.getString("puntoVenta") : "";
+            String loc = idDoc != null ? idDoc.getString("localidad") : "";
+            String desc = idDoc != null ? idDoc.getString("descripcion") : "";
+            int unidades = doc.getInteger("cantidadUnidades");
+            double monto = doc.getDouble("totalMonto");
+            System.out.printf("%-3d %-12s %-12s %-25s %15d $ %9.2f%n", rank++, pv, loc, desc, unidades, monto);
+        }
+        System.out.println();
+    }
+
+    private void consulta7Cadena(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 7: Ranking de Clientes por Monto (Cadena Completa) ---");
+        System.out.printf("%-30s %20s %15s%n", "Cliente", "Total Compras", "Cant. Ventas");
+        System.out.println("------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.group(
+                        new Document("dni", "$cliente.dni")
+                                .append("nombre", "$cliente.nombre")
+                                .append("apellido", "$cliente.apellido"),
+                        Accumulators.sum("totalCompras", "$totalVenta"),
+                        Accumulators.sum("cantidadVentas", 1)),
+                Aggregates.sort(Sorts.descending("totalCompras"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String nombre = idDoc != null ? idDoc.getString("nombre") + " " + idDoc.getString("apellido") : "";
+            double total = doc.getDouble("totalCompras");
+            int cantidad = doc.getInteger("cantidadVentas");
+            System.out.printf("%-3d %-26s $ %14.2f %15d%n", rank++, nombre, total, cantidad);
+        }
+        System.out.println();
+    }
+
+    private void consulta7PorSucursal(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 7: Ranking de Clientes por Monto por Sucursal ---");
+        System.out.printf("%-15s %-15s %-25s %15s %15s%n", "Punto Venta", "Localidad", "Cliente", "Total Compras", "Cant. Ventas");
+        System.out.println("------------------------------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.group(
+                        new Document("puntoVenta", "$sucursal.puntoVenta")
+                                .append("localidad", "$sucursal.direccion.localidad")
+                                .append("dni", "$cliente.dni")
+                                .append("nombre", "$cliente.nombre")
+                                .append("apellido", "$cliente.apellido"),
+                        Accumulators.sum("totalCompras", "$totalVenta"),
+                        Accumulators.sum("cantidadVentas", 1)),
+                Aggregates.sort(Sorts.descending("totalCompras"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String pv = idDoc != null ? idDoc.getString("puntoVenta") : "";
+            String loc = idDoc != null ? idDoc.getString("localidad") : "";
+            String nombre = idDoc != null ? idDoc.getString("nombre") + " " + idDoc.getString("apellido") : "";
+            double total = doc.getDouble("totalCompras");
+            int cantidad = doc.getInteger("cantidadVentas");
+            System.out.printf("%-3d %-12s %-12s %-25s $ %9.2f %15d%n", rank++, pv, loc, nombre, total, cantidad);
+        }
+        System.out.println();
+    }
+
+    private void consulta8Cadena(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 8: Ranking de Clientes por Cantidad (Cadena Completa) ---");
+        System.out.printf("%-30s %20s %15s%n", "Cliente", "Cant. Unidades", "Total Gastado");
+        System.out.println("------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.unwind("$detalles"),
+                Aggregates.group(
+                        new Document("dni", "$cliente.dni")
+                                .append("nombre", "$cliente.nombre")
+                                .append("apellido", "$cliente.apellido"),
+                        Accumulators.sum("cantidadUnidades", "$detalles.cantidad"),
+                        Accumulators.sum("totalGastado", "$detalles.subtotal")),
+                Aggregates.sort(Sorts.descending("cantidadUnidades"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String nombre = idDoc != null ? idDoc.getString("nombre") + " " + idDoc.getString("apellido") : "";
+            int unidades = doc.getInteger("cantidadUnidades");
+            double total = doc.getDouble("totalGastado");
+            System.out.printf("%-3d %-26s %15d $ %14.2f%n", rank++, nombre, unidades, total);
+        }
+        System.out.println();
+    }
+
+    private void consulta8PorSucursal(Date fechaInicio, Date fechaFin) {
+        System.out.println("--- CONSULTA 8: Ranking de Clientes por Cantidad por Sucursal ---");
+        System.out.printf("%-15s %-15s %-25s %15s %15s%n", "Punto Venta", "Localidad", "Cliente", "Cant. Unidades", "Total Gastado");
+        System.out.println("------------------------------------------------------------------------------------------");
+
+        List<Bson> pipeline = Arrays.asList(
+                Aggregates.match(Filters.and(Filters.gte("fecha", fechaInicio), Filters.lte("fecha", fechaFin))),
+                Aggregates.unwind("$detalles"),
+                Aggregates.group(
+                        new Document("puntoVenta", "$sucursal.puntoVenta")
+                                .append("localidad", "$sucursal.direccion.localidad")
+                                .append("dni", "$cliente.dni")
+                                .append("nombre", "$cliente.nombre")
+                                .append("apellido", "$cliente.apellido"),
+                        Accumulators.sum("cantidadUnidades", "$detalles.cantidad"),
+                        Accumulators.sum("totalGastado", "$detalles.subtotal")),
+                Aggregates.sort(Sorts.descending("cantidadUnidades"))
+        );
+
+        int rank = 1;
+        for (Document doc : ventasCollection.aggregate(pipeline)) {
+            Document idDoc = doc.get("_id", Document.class);
+            String pv = idDoc != null ? idDoc.getString("puntoVenta") : "";
+            String loc = idDoc != null ? idDoc.getString("localidad") : "";
+            String nombre = idDoc != null ? idDoc.getString("nombre") + " " + idDoc.getString("apellido") : "";
+            int unidades = doc.getInteger("cantidadUnidades");
+            double total = doc.getDouble("totalGastado");
+            System.out.printf("%-3d %-12s %-12s %-25s %15d $ %9.2f%n", rank++, pv, loc, nombre, unidades, total);
         }
         System.out.println();
     }
